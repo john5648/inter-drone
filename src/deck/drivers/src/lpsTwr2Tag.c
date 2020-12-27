@@ -110,18 +110,24 @@ static void txcallback(dwDevice_t *dev)
         final_tx = departure;
         break;
       case LPS_TWR_REPORT+1:
-        if( (current_receiveID == 0) || (current_receiveID-1 == selfID) ){
-          current_mode_trans = false;
-          dwIdle(dev);
-          dwSetReceiveWaitTimeout(dev, 10000);
-          dwNewReceive(dev);
-          dwSetDefaults(dev);
-          dwStartReceive(dev);
-          checkTurn = true;
-          checkTurnTick = xTaskGetTickCount();
-        }else{
+        // if( (current_receiveID == 0) || (current_receiveID-1 == selfID) ){
+        //   current_mode_trans = false;
+        //   dwIdle(dev);
+        //   dwSetReceiveWaitTimeout(dev, 10000);
+        //   dwNewReceive(dev);
+        //   dwSetDefaults(dev);
+        //   dwStartReceive(dev);
+        //   checkTurn = true;
+        //   checkTurnTick = xTaskGetTickCount();
+        // }else{
+        //   current_receiveID = current_receiveID - 1;
+        // }
+        if (current_receiveID == 1){
+          current_receiveID = 4;
+        } 
+        else{
           current_receiveID = current_receiveID - 1;
-        }
+        }          
         break;
     }
   }else{
@@ -262,31 +268,34 @@ static void rxcallback(dwDevice_t *dev) {
           median_data[rangingID].distance_history[median_data[rangingID].index_inserting] = calcDist;
         }
         rangingOk = true;
-        uint8_t fromID = (uint8_t)(rxPacket.sourceAddress & 0xFF);
-        if( selfID == fromID + 1 || selfID == 0 ){
-          current_mode_trans = true;
-          dwIdle(dev);
-          dwSetReceiveWaitTimeout(dev, 1000);
-          if(selfID == NUM_CFs-1)
-            current_receiveID = 0;
-          else
-            current_receiveID = NUM_CFs - 1;
-          if(selfID == 0)
-            current_receiveID = NUM_CFs - 2; // immediate problem
-          txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_POLL;
-          txPacket.payload[LPS_TWR_SEQ] = 0;
-          txPacket.sourceAddress = selfAddress;
-          txPacket.destAddress = basicAddr + current_receiveID;
-          dwNewTransmit(dev);
-          dwSetDefaults(dev);
-          dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2);
-          dwWaitForResponse(dev, true);
-          dwStartTransmit(dev);
-        }else{
-          dwNewReceive(dev);
-          dwSetDefaults(dev);
-          dwStartReceive(dev);
-        }
+        // uint8_t fromID = (uint8_t)(rxPacket.sourceAddress & 0xFF);
+        // if( selfID == fromID + 1 || selfID == 0 ){
+        //   current_mode_trans = true;
+        //   dwIdle(dev);
+        //   dwSetReceiveWaitTimeout(dev, 1000);
+        //   if(selfID == NUM_CFs-1)
+        //     current_receiveID = 0;
+        //   else
+        //     current_receiveID = NUM_CFs - 1;
+        //   if(selfID == 0)
+        //     current_receiveID = NUM_CFs - 2; // immediate problem
+        //   txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_POLL;
+        //   txPacket.payload[LPS_TWR_SEQ] = 0;
+        //   txPacket.sourceAddress = selfAddress;
+        //   txPacket.destAddress = basicAddr + current_receiveID;
+        //   dwNewTransmit(dev);
+        //   dwSetDefaults(dev);
+        //   dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2);
+        //   dwWaitForResponse(dev, true);
+        //   dwStartTransmit(dev);
+        // }else{
+        //   dwNewReceive(dev);
+        //   dwSetDefaults(dev);
+        //   dwStartReceive(dev);
+        // }
+        dwNewReceive(dev);
+        dwSetDefaults(dev);
+        dwStartReceive(dev);        
         break;
       }
     }
