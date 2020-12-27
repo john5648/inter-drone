@@ -27,7 +27,7 @@ PLATFORM          ?= cf2
 LPS_TDMA_ENABLE   ?= 0
 LPS_TDOA_ENABLE   ?= 0
 LPS_TDOA3_ENABLE  ?= 0
-
+LPS_TWR2_ENABLE   ?= 1
 
 # Platform configuration handling
 -include current_platform.mk
@@ -231,6 +231,11 @@ endif
 
 ifeq ($(LPS_TDMA_ENABLE), 1)
 CFLAGS += -DLPS_TDMA_ENABLE
+endif
+
+ifeq ($(LPS_TWR2_ENABLE), 1)
+PROJ_OBJ := $(filter-out lpsTwrTag.o,$(PROJ_OBJ))
+PROJ_OBJ += lpsTwr2Tag.o
 endif
 
 ifdef SENSORS

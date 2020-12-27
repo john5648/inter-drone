@@ -56,7 +56,7 @@
 #include "lpsTdoa2Tag.h"
 #include "lpsTdoa3Tag.h"
 #include "lpsTwrTag.h"
-
+#include "lpsTwr2Tag.h"
 
 #define CS_PIN DECK_GPIO_IO1
 
@@ -87,7 +87,7 @@
 #define DEFAULT_RX_TIMEOUT 10000
 
 
-#define ANTENNA_OFFSET 154.6   // In meter
+#define ANTENNA_OFFSET 155.5   // In meter
 
 // The anchor position can be set using parameters
 // As an option you can set a static position in this file and set
