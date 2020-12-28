@@ -40,7 +40,7 @@
 #include "log.h"
 #include "physicalConstants.h"
 #include "configblock.h"
-#include "debug.h"
+// #include "debug.h"
 
 // #include "estimator_kalman.h"
 
@@ -157,17 +157,21 @@ static void rxcallback(dwDevice_t *dev) {
   packet_t rxPacket;
   memset(&rxPacket, 0, MAC802154_HEADER_LENGTH);
   dwGetData(dev, (uint8_t*)&rxPacket, dataLength);
-  if (rxPacket.destAddress != selfAddress) {
-    if(current_mode_trans){
-      current_mode_trans = false;
-      dwIdle(dev);
-      dwSetReceiveWaitTimeout(dev, 10000);
-    }
+
+  // To prevent node being detected instead of drones
+  if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)<10) {
+    // if(current_mode_trans){
+    //   current_mode_trans = false;
+    //   dwIdle(dev);
+    //   dwSetReceiveWaitTimeout(dev, 10000);
+    // }
     dwNewReceive(dev);
     dwSetDefaults(dev);
     dwStartReceive(dev);
     return;
   }
+
+  // DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
 
   txPacket.destAddress = rxPacket.sourceAddress;
   txPacket.sourceAddress = rxPacket.destAddress;
@@ -442,9 +446,9 @@ uwbAlgorithm_t uwbTwr2TagAlgorithm = {
 };
 
 LOG_GROUP_START(ranging)
-LOG_ADD(LOG_UINT16, distance0, &state.distance[0])
-LOG_ADD(LOG_UINT16, distance1, &state.distance[1])
-LOG_ADD(LOG_UINT16, distance2, &state.distance[2])
-LOG_ADD(LOG_UINT16, distance3, &state.distance[3])
-LOG_ADD(LOG_UINT16, distance4, &state.distance[4])
+LOG_ADD(LOG_UINT16, distance0, &state.distance[1])
+LOG_ADD(LOG_UINT16, distance1, &state.distance[2])
+LOG_ADD(LOG_UINT16, distance2, &state.distance[3])
+LOG_ADD(LOG_UINT16, distance3, &state.distance[4])
+LOG_ADD(LOG_UINT16, distance4, &state.distance[0])
 LOG_GROUP_STOP(ranging) 
