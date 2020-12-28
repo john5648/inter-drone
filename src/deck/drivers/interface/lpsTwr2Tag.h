@@ -16,7 +16,10 @@
 
 #define NUM_CFs 5
 
-extern uwbAlgorithm_t uwbTwrTagAlgorithm;
+extern uwbAlgorithm_t uwbTwr2TagAlgorithm;
+
+int switchAgentMode();
+extern int MODE;
 
 typedef struct {
   uint8_t pollRx[5];

@@ -27,7 +27,7 @@ PLATFORM          ?= cf2
 LPS_TDMA_ENABLE   ?= 0
 LPS_TDOA_ENABLE   ?= 0
 LPS_TDOA3_ENABLE  ?= 0
-LPS_TWR2_ENABLE   ?= 1
+LPS_TWR2_ENABLE   ?= 0
 
 # Platform configuration handling
 -include current_platform.mk
@@ -207,6 +207,7 @@ PROJ_OBJ += clockCorrectionEngine.o
 PROJ_OBJ += lpsTwrTag.o
 PROJ_OBJ += lpsTdoa2Tag.o
 PROJ_OBJ += lpsTdoa3Tag.o tdoaEngineInstance.o tdoaEngine.o tdoaStats.o tdoaStorage.o
+PROJ_OBJ += lpsTwr2Tag.o
 PROJ_OBJ += outlierFilter.o
 PROJ_OBJ += flowdeck_v1v2.o
 PROJ_OBJ += oa.o
@@ -233,10 +234,10 @@ ifeq ($(LPS_TDMA_ENABLE), 1)
 CFLAGS += -DLPS_TDMA_ENABLE
 endif
 
-ifeq ($(LPS_TWR2_ENABLE), 1)
-PROJ_OBJ := $(filter-out lpsTwrTag.o,$(PROJ_OBJ))
-PROJ_OBJ += lpsTwr2Tag.o
-endif
+# ifeq ($(LPS_TWR2_ENABLE), 1)
+# PROJ_OBJ := $(filter-out lpsTwrTag.o,$(PROJ_OBJ))
+# PROJ_OBJ += lpsTwr2Tag.o
+# endif
 
 ifdef SENSORS
 SENSORS_UPPER = $(shell echo $(SENSORS) | tr a-z A-Z)

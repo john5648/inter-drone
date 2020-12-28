@@ -32,6 +32,7 @@
 #include "log.h"
 #include "param.h"
 #include "lpsTdoa2Tag.h"
+#include "lpsTwr2Tag.h"
 
 #include "stabilizer_types.h"
 #include "cfassert.h"
@@ -40,6 +41,8 @@
 
 #include "physicalConstants.h"
 #include "tdoaEngineInstance.h"
+
+#include "debug.h"
 
 #if ANCHOR_STORAGE_COUNT < LOCODECK_NR_OF_TDOA2_ANCHORS
   #error "Tdoa engine storage is too small"
@@ -216,6 +219,8 @@ static bool rxcallback(dwDevice_t *dev) {
       handleLppPacket(dataLength, &rxPacket, &anchorCtx);
 
       rangingOk = true;
+      //maybe mode code here
+      DEBUG_PRINT("TDOA");
     }
   }
 

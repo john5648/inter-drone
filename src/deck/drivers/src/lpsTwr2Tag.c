@@ -40,6 +40,7 @@
 #include "log.h"
 #include "physicalConstants.h"
 #include "configblock.h"
+#include "debug.h"
 
 // #include "estimator_kalman.h"
 
@@ -48,6 +49,12 @@
 static uint8_t selfID; // selfID = last_number_of_radio_address - 5
 static locoAddress_t selfAddress;
 static const uint64_t antennaDelay = (ANTENNA_OFFSET*499.2e6*128)/299792458.0; // In radio tick
+
+int MODE = 4;
+
+int switchAgentMode(){
+    return MODE;
+}
 
 typedef struct {
   uint16_t distance[NUM_CFs];
@@ -127,7 +134,7 @@ static void txcallback(dwDevice_t *dev)
         } 
         else{
           current_receiveID = current_receiveID - 1;
-        }          
+        }
         break;
     }
   }else{
@@ -304,6 +311,7 @@ static void rxcallback(dwDevice_t *dev) {
 
 static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
 {
+  DEBUG_PRINT("%d", (int)event);
   switch(event) {
     case eventPacketReceived:
       rxcallback(dev);
@@ -425,7 +433,7 @@ static uint8_t getActiveAnchorIdList(uint8_t unorderedAnchorList[], const int ma
   return count;
 }
 
-uwbAlgorithm_t uwbTwrTagAlgorithm = {
+uwbAlgorithm_t uwbTwr2TagAlgorithm = {
   .init = twrTagInit,
   .onEvent = twrTagOnEvent,
   .isRangingOk = isRangingOk,
