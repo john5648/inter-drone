@@ -129,8 +129,8 @@ static void txcallback(dwDevice_t *dev)
         // }else{
         //   current_receiveID = current_receiveID - 1;
         // }
-        if (current_receiveID == 1){
-          current_receiveID = 4;
+        if (current_receiveID == 11){
+          current_receiveID = 14;
         } 
         else{
           current_receiveID = current_receiveID - 1;
@@ -202,15 +202,15 @@ static void rxcallback(dwDevice_t *dev) {
         tprop = tprop_ctn / LOCODECK_TS_FREQ;
         uint16_t calcDist = (uint16_t)(1000 * (SPEED_OF_LIGHT * tprop + 1));
         if(calcDist!=0){
-          uint16_t medianDist = median_filter_3(median_data[current_receiveID].distance_history);
+          uint16_t medianDist = median_filter_3(median_data[current_receiveID-10].distance_history);
           if (ABS(medianDist-calcDist)>500)
-            state.distance[current_receiveID] = medianDist;
+            state.distance[current_receiveID-10] = medianDist;
           else
-            state.distance[current_receiveID] = calcDist;
-          median_data[current_receiveID].index_inserting++;
-          if(median_data[current_receiveID].index_inserting==3)
-            median_data[current_receiveID].index_inserting = 0;
-          median_data[current_receiveID].distance_history[median_data[current_receiveID].index_inserting] = calcDist;        
+            state.distance[current_receiveID-10] = calcDist;
+          median_data[current_receiveID-10].index_inserting++;
+          if(median_data[current_receiveID-10].index_inserting==3)
+            median_data[current_receiveID-10].index_inserting = 0;
+          median_data[current_receiveID-10].distance_history[median_data[current_receiveID-10].index_inserting] = calcDist;        
           rangingOk = true;
         }
 
@@ -260,7 +260,7 @@ static void rxcallback(dwDevice_t *dev) {
       case (LPS_TWR_REPORT+1):
       {
         lpsTwrInterCFsReportPayload_t *report2 = (lpsTwrInterCFsReportPayload_t *)(rxPacket.payload+2);
-        uint8_t rangingID = (uint8_t)(rxPacket.sourceAddress & 0xFF);
+        uint8_t rangingID = (uint8_t)(rxPacket.sourceAddress & 0xFF)-10;
         if((report2->distance)!=0){
           // received distance has large noise
           uint16_t calcDist = report2->distance;
@@ -311,7 +311,6 @@ static void rxcallback(dwDevice_t *dev) {
 
 static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
 {
-  DEBUG_PRINT("%d", (int)event);
   switch(event) {
     case eventPacketReceived:
       rxcallback(dev);
@@ -380,13 +379,13 @@ static void twrTagInit(dwDevice_t *dev)
   memset(&final_tx, 0, sizeof(final_tx));
   memset(&final_rx, 0, sizeof(final_rx));
 
-  selfID = (uint8_t)(((configblockGetRadioAddress()) & 0x000000000f) - 5);
+  selfID = (uint8_t)(((configblockGetRadioAddress()) & 0x000000000f));
   selfAddress = basicAddr + selfID;
 
   // Communication logic between each UWB
-  if(selfID==0)
+  if(selfID==10)
   {
-    current_receiveID = NUM_CFs-1;
+    current_receiveID = selfID+4;
     current_mode_trans = true;
     dwSetReceiveWaitTimeout(dev, 1000);
   }
@@ -411,7 +410,7 @@ static bool isRangingOk()
 }
 
 static bool getAnchorPosition(const uint8_t anchorId, point_t* position) {
-  if (anchorId < NUM_CFs-1)
+  if (anchorId > NUM_CFs+5)
     return true;
   else
     return false;
