@@ -130,11 +130,15 @@ static void txcallback(dwDevice_t *dev)
         //   current_receiveID = current_receiveID - 1;
         // }
         if (current_receiveID == 11){
+          // DEBUG_PRINT("TWR2 ranging done \n");
           current_receiveID = 14;
-        } 
+          // mode change only in anchors
+          // MODE = lpsMode_TDoA2;
+        }
         else{
           current_receiveID = current_receiveID - 1;
         }
+        
         break;
     }
   }else{
@@ -158,6 +162,7 @@ static void rxcallback(dwDevice_t *dev) {
   memset(&rxPacket, 0, MAC802154_HEADER_LENGTH);
   dwGetData(dev, (uint8_t*)&rxPacket, dataLength);
 
+  // DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
   // To prevent node being detected instead of drones
   if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)<10) {
     // if(current_mode_trans){
@@ -304,9 +309,10 @@ static void rxcallback(dwDevice_t *dev) {
         //   dwSetDefaults(dev);
         //   dwStartReceive(dev);
         // }
-        dwNewReceive(dev);
-        dwSetDefaults(dev);
-        dwStartReceive(dev);        
+        // dwNewReceive(dev);
+        // dwSetDefaults(dev);
+        // dwStartReceive(dev);
+        MODE = lpsMode_TDoA2;
         break;
       }
     }

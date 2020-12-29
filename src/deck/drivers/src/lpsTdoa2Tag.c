@@ -65,6 +65,8 @@ static lpsTdoa2AlgoOptions_t defaultOptions = {
    },
 };
 
+int i=0;
+
 static lpsTdoa2AlgoOptions_t* options = &defaultOptions;
 
 // State
@@ -185,11 +187,12 @@ static bool rxcallback(dwDevice_t *dev) {
 
   dwGetData(dev, (uint8_t*)&rxPacket, dataLength);
   const rangePacket2_t* packet = (rangePacket2_t*)rxPacket.payload;
+  // DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
 
   bool lppSent = false;
   if (packet->type == PACKET_TYPE_TDOA2) {
     const uint8_t anchor = rxPacket.sourceAddress & 0xff;
-
+    // DEBUG_PRINT("%d \n", anchor);
     // Check if we need to send the current LPP packet
     if (lppPacketToSend && lppPacket.dest == anchor) {
       sendLppShort(dev, &lppPacket);
@@ -218,9 +221,15 @@ static bool rxcallback(dwDevice_t *dev) {
 
       handleLppPacket(dataLength, &rxPacket, &anchorCtx);
 
+      if (i>=15){
+        MODE = lpsMode_TWR2;
+        i=0;
+      }
+      else{
+        i=i+1;
+      }
+
       rangingOk = true;
-      //maybe mode code here
-      DEBUG_PRINT("TDOA");
     }
   }
 
