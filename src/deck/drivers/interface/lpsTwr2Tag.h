@@ -21,6 +21,8 @@ extern uwbAlgorithm_t uwbTwr2TagAlgorithm;
 int switchAgentMode();
 extern int MODE;
 
+extern bool flyornot;
+
 typedef struct {
   uint8_t pollRx[5];
   uint8_t answerTx[5];

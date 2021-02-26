@@ -87,9 +87,9 @@
 #define DEFAULT_RX_TIMEOUT 10000
 
 
-#define ANTENNA_OFFSET 155.5   // In meter
+#define ANTENNA_OFFSET 155.2   // In meter
 
-#define LPS_TWR2_ENABLE 1   
+#define LPS_TDOA_ENABLE 1   
 
 // The anchor position can be set using parameters
 // As an option you can set a static position in this file and set
@@ -350,7 +350,7 @@ static void handleModeSwitch() {
     resetAutoSearchMode();
     if (algoOptions.userRequestedMode != algoOptions.currentRangingMode) {
       if (switchToMode(algoOptions.userRequestedMode)) {
-        // DEBUG_PRINT("Switching to mode %s\n", algorithmsList[algoOptions.currentRangingMode].name);
+        DEBUG_PRINT("\n Switching to mode %s\n", algorithmsList[algoOptions.currentRangingMode].name);
       }
     }
   }

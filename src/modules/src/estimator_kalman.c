@@ -78,6 +78,7 @@
 #define DEBUG_MODULE "ESTKALMAN"
 #include "debug.h"
 
+#include "lpsTwr2Tag.h"
 
 // #define KALMAN_USE_BARO_UPDATE
 
@@ -496,7 +497,7 @@ static bool predictStateForward(uint32_t osTick, float dt) {
     }
   }
   quadIsFlying = (osTick-lastFlightCmd) < IN_FLIGHT_TIME_THRESHOLD;
-
+  flyornot = quadIsFlying;
   kalmanCorePredict(&coreData, thrustAverage, &accAverage, &gyroAverage, dt, quadIsFlying);
 
   return true;

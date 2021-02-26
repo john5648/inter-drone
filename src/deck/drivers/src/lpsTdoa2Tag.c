@@ -42,7 +42,9 @@
 #include "physicalConstants.h"
 #include "tdoaEngineInstance.h"
 
-#include "debug.h"
+// #include "debug.h"
+
+bool flyornot = false;
 
 #if ANCHOR_STORAGE_COUNT < LOCODECK_NR_OF_TDOA2_ANCHORS
   #error "Tdoa engine storage is too small"
@@ -65,7 +67,9 @@ static lpsTdoa2AlgoOptions_t defaultOptions = {
    },
 };
 
-int i=0;
+// int chang=-1000;
+int chang=-5000;
+int flag11 = 0;
 
 static lpsTdoa2AlgoOptions_t* options = &defaultOptions;
 
@@ -198,7 +202,6 @@ static bool rxcallback(dwDevice_t *dev) {
       sendLppShort(dev, &lppPacket);
       lppSent = true;
     }
-
     dwTime_t arrival = {.full = 0};
     dwGetReceiveTimestamp(dev, &arrival);
 
@@ -221,15 +224,20 @@ static bool rxcallback(dwDevice_t *dev) {
 
       handleLppPacket(dataLength, &rxPacket, &anchorCtx);
 
-      if (i>=15){
+      rangingOk = true;
+
+      if (chang>=32){
+        chang=0;
         MODE = lpsMode_TWR2;
-        i=0;
+        // DEBUG_PRINT("change to TWR \n");
       }
       else{
-        i=i+1;
+        chang=chang+1;
       }
-
-      rangingOk = true;
+      if (flag11==0 && flyornot){
+        flag11 = 1;
+        chang = -2000;
+      }
     }
   }
 

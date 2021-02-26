@@ -44,13 +44,15 @@
 
 // #include "estimator_kalman.h"
 
-#define ANTENNA_OFFSET 155.5   // In meter
+#define ANTENNA_OFFSET 155.2   // In meter
 #define basicAddr 0xbccf000000000000
 static uint8_t selfID; // selfID = last_number_of_radio_address - 5
 static locoAddress_t selfAddress;
 static const uint64_t antennaDelay = (ANTENNA_OFFSET*499.2e6*128)/299792458.0; // In radio tick
 
-int MODE = 4;
+int MODE = 2;
+static int endu;
+int target1 = 0;
 
 int switchAgentMode(){
     return MODE;
@@ -313,6 +315,7 @@ static void rxcallback(dwDevice_t *dev) {
         // dwSetDefaults(dev);
         // dwStartReceive(dev);
         MODE = lpsMode_TDoA2;
+        // DEBUG_PRINT("change to TDOA \n");
         break;
       }
     }
@@ -321,10 +324,17 @@ static void rxcallback(dwDevice_t *dev) {
 
 static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
 {
+  // DEBUG_PRINT("%d", event);
   switch(event) {
     case eventPacketReceived:
       rxcallback(dev);
       checkTurn = false;
+      if (current_mode_trans == false){
+        endu = endu +1;
+        if (endu>=5){
+          MODE = lpsMode_TDoA2;
+        }
+      }
       break;
     case eventPacketSent:
       txcallback(dev);
@@ -377,6 +387,7 @@ static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
 
 static void twrTagInit(dwDevice_t *dev)
 {
+  endu = 0;
   // Initialize the packet in the TX buffer
   memset(&txPacket, 0, sizeof(txPacket));
   MAC80215_PACKET_INIT(txPacket, MAC802154_TYPE_DATA);
