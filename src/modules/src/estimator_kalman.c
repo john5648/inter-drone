@@ -75,6 +75,17 @@
 #include "statsCnt.h"
 #include "rateSupervisor.h"
 
+// Measurement models
+#include "mm_distance.h"
+#include "mm_absolute_height.h"
+#include "mm_position.h"
+#include "mm_pose.h"
+#include "mm_tdoa.h"
+#include "mm_flow.h"
+#include "mm_tof.h"
+#include "mm_yaw_error.h"
+#include "mm_sweep_angles.h"
+
 #define DEBUG_MODULE "ESTKALMAN"
 #include "debug.h"
 
@@ -231,6 +242,8 @@ static bool quadIsFlying = false;
 static uint32_t lastFlightCmd;
 static uint32_t takeoffTime;
 
+static OutlierFilterLhState_t sweepOutlierFilterState;
+
 // Data used to enable the task and stabilizer loop to run with minimal locking
 static state_t taskEstimatorState; // The estimator state produced by the task, copied to the stabilzer when needed.
 static Axis3f gyroSnapshot; // A snpashot of the latest gyro data, used by the task
@@ -372,7 +385,10 @@ static void kalmanTask(void* parameters) {
       xSemaphoreTake(dataMutex, portMAX_DELAY);
       memcpy(&gyro, &gyroSnapshot, sizeof(gyro));
       xSemaphoreGive(dataMutex);
-      doneUpdate = doneUpdate || updateQueuedMeasurments(&gyro, osTick);
+
+      if(updateQueuedMeasurments(&gyro, osTick)) {
+        doneUpdate = true;
+      }
     }
 
     /**
@@ -570,7 +586,7 @@ static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick) {
   sweepAngleMeasurement_t angles;
   while (stateEstimatorHasSweepAnglesPacket(&angles))
   {
-    kalmanCoreUpdateWithSweepAngles(&coreData, &angles, tick);
+    kalmanCoreUpdateWithSweepAngles(&coreData, &angles, tick, &sweepOutlierFilterState);
     doneUpdate = true;
   }
 
@@ -597,6 +613,8 @@ void estimatorKalmanInit(void) {
   thrustAccumulatorCount = 0;
   baroAccumulatorCount = 0;
   xSemaphoreGive(dataMutex);
+
+  outlierFilterReset(&sweepOutlierFilterState, 0);
 
   kalmanCoreInit(&coreData);
 }
@@ -740,6 +758,10 @@ LOG_GROUP_START(kalman)
   STATS_CNT_RATE_LOG_ADD(rtApnd, &measurementAppendedCounter)
   STATS_CNT_RATE_LOG_ADD(rtRej, &measurementNotAppendedCounter)
 LOG_GROUP_STOP(kalman)
+
+LOG_GROUP_START(outlierf)
+  LOG_ADD(LOG_INT32, lhWin, &sweepOutlierFilterState.openingWindow)
+LOG_GROUP_STOP(outlierf)
 
 PARAM_GROUP_START(kalman)
   PARAM_ADD(PARAM_UINT8, resetEstimation, &coreData.resetEstimation)

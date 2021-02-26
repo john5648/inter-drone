@@ -86,9 +86,6 @@
 
 #define DEFAULT_RX_TIMEOUT 10000
 
-
-#define ANTENNA_OFFSET 155.2   // In meter
-
 #define LPS_TDOA_ENABLE 1   
 
 // The anchor position can be set using parameters

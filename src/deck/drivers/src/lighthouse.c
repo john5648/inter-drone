@@ -33,15 +33,20 @@
 #include "deck.h"
 #include "param.h"
 
+#include "stm32fxxx.h"
 #include "config.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "timers.h"
 
 #include "lighthouse_core.h"
 
+// LED timer
+static StaticTimer_t timerBuffer;
+#define FIFTH_SECOND 200
+static void ledTimerHandle(xTimerHandle timer);
 
 static bool isInit = false;
-
 // lighthouseBaseStationsGeometry has been moved to lighthouse_core.c
 
 static void lighthouseInit(DeckInfo *info)
@@ -55,9 +60,17 @@ static void lighthouseInit(DeckInfo *info)
   xTaskCreate(lighthouseCoreTask, LIGHTHOUSE_TASK_NAME,
               2*configMINIMAL_STACK_SIZE, NULL, LIGHTHOUSE_TASK_PRI, NULL);
 
+  xTimerHandle timer;
+  timer = xTimerCreateStatic("ledTimer", M2T(FIFTH_SECOND), pdTRUE,
+    NULL, ledTimerHandle, &timerBuffer);
+  xTimerStart(timer, M2T(0));
+
   isInit = true;
 }
 
+static void ledTimerHandle(xTimerHandle timer) {
+  lighthouseCoreLedTimer();
+}
 
 static const DeckDriver lighthouse_deck = {
   .vid = 0xBC,
@@ -74,5 +87,5 @@ static const DeckDriver lighthouse_deck = {
 DECK_DRIVER(lighthouse_deck);
 
 PARAM_GROUP_START(deck)
-PARAM_ADD(PARAM_UINT8 | PARAM_RONLY, bdLighthouse4, &isInit)
+PARAM_ADD(PARAM_UINT8 | PARAM_RONLY, bcLighthouse4, &isInit)
 PARAM_GROUP_STOP(deck)
