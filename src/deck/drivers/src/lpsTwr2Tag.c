@@ -46,13 +46,14 @@
 
 #define ANTENNA_OFFSET 155.2   // In meter
 #define basicAddr 0xbccf000000000000
-static uint8_t selfID; // selfID = last_number_of_radio_address - 5
+static uint8_t selfID; // selfID = last_number_of_radio_address - 10
 static locoAddress_t selfAddress;
 static const uint64_t antennaDelay = (ANTENNA_OFFSET*499.2e6*128)/299792458.0; // In radio tick
 
-int MODE = 2;
+// mode=4 for tag and mode=2 for anchor 
+int MODE = 4;
 static int endu;
-int target1 = 0;
+static int history_event;
 
 int switchAgentMode(){
     return MODE;
@@ -80,6 +81,9 @@ static uint8_t current_receiveID; // transmitting to which UWB
 
 static bool checkTurn; // check if the receiving UWB turns into transmitting mode
 static uint32_t checkTurnTick = 0;
+
+static bool TWRongoing;
+
 
 // Median filter for distance ranging (size=3)
 typedef struct {
@@ -113,12 +117,15 @@ static void txcallback(dwDevice_t *dev)
   if(current_mode_trans){
     switch (txPacket.payload[0]) {
       case LPS_TWR_POLL:
+        // DEBUG_PRINT("send poll");
         poll_tx = departure;
         break;
       case LPS_TWR_FINAL:
+        // DEBUG_PRINT("send final");
         final_tx = departure;
         break;
       case LPS_TWR_REPORT+1:
+        // DEBUG_PRINT("send report again");
         // if( (current_receiveID == 0) || (current_receiveID-1 == selfID) ){
         //   current_mode_trans = false;
         //   dwIdle(dev);
@@ -131,27 +138,47 @@ static void txcallback(dwDevice_t *dev)
         // }else{
         //   current_receiveID = current_receiveID - 1;
         // }
-        if (current_receiveID == 11){
-          // DEBUG_PRINT("TWR2 ranging done \n");
-          current_receiveID = 14;
-          // mode change only in anchors
-          // MODE = lpsMode_TDoA2;
-        }
-        else{
-          current_receiveID = current_receiveID - 1;
-        }
-        
+        // if (current_receiveID == 11){
+        //   // DEBUG_PRINT("TWR2 ranging done \n");
+        //   current_receiveID = 14;
+        //   // mode change only in anchors
+        //   // MODE = lpsMode_TDoA2;
+        // }
+        // else{
+        //   current_receiveID = current_receiveID - 1;
+        // }
+        MODE = lpsMode_TDoA2;
         break;
     }
   }else{
     switch (txPacket.payload[0]) {
       case LPS_TWR_ANSWER:
+      // DEBUG_PRINT("send answer");
         answer_tx = departure;
         break;
       case LPS_TWR_REPORT:
+      // DEBUG_PRINT("send report");
         break;
     }
   }
+  if(history_event==(int)(txPacket.payload[0])){
+    endu = endu + 1;
+    if (endu>=5){
+      if(current_mode_trans){
+        MODE = lpsMode_TDoA2;
+      }else{
+        TWRongoing = false;
+        endu = 0;
+        dwNewReceive(dev);
+        dwSetDefaults(dev);
+        dwStartReceive(dev);
+        return;
+      }
+    }
+  }else{
+    endu = 0;
+  }
+  history_event = (int)(txPacket.payload[0]);
 }
 
 
@@ -166,27 +193,60 @@ static void rxcallback(dwDevice_t *dev) {
 
   // DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
   // To prevent node being detected instead of drones
-  if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)<10) {
-    // if(current_mode_trans){
-    //   current_mode_trans = false;
-    //   dwIdle(dev);
-    //   dwSetReceiveWaitTimeout(dev, 10000);
-    // }
+  if (current_mode_trans==false && TWRongoing==false){
+    if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)<10){
+      dwNewReceive(dev);
+      dwSetDefaults(dev);
+      dwStartReceive(dev);
+      return;
+    }
+    current_receiveID = (uint8_t)(rxPacket.sourceAddress & 0x0f);
+    // DEBUG_PRINT("choose anchor %d ", current_receiveID);
+    TWRongoing = true;
+  }else if(current_mode_trans==false && TWRongoing==true){
+    if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)!=current_receiveID){
+      dwNewReceive(dev);
+      dwSetDefaults(dev);
+      dwStartReceive(dev);
+      return;
+    }
+    // DEBUG_PRINT("still anchor");
+  }else if(current_mode_trans){
+    if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)<10){
+      dwNewReceive(dev);
+      dwSetDefaults(dev);
+      dwStartReceive(dev);
+      return;
+    }
+  }else{
+    // DEBUG_PRINT("so what");
     dwNewReceive(dev);
     dwSetDefaults(dev);
     dwStartReceive(dev);
     return;
   }
-
+  // if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)<10) {
+  //   // if(current_mode_trans){
+  //   //   current_mode_trans = false;
+  //   //   dwIdle(dev);
+  //   //   dwSetReceiveWaitTimeout(dev, 10000);
+  //   // }
+  //   dwNewReceive(dev);
+  //   dwSetDefaults(dev);
+  //   dwStartReceive(dev);
+  //   return;
+  // }
+  
   // DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
-
   txPacket.destAddress = rxPacket.sourceAddress;
   txPacket.sourceAddress = rxPacket.destAddress;
-
+  // DEBUG_PRINT(current_mode_trans ? "true" : "false");
+  // DEBUG_PRINT("%x", rxPacket.payload[LPS_TWR_TYPE]);
   if(current_mode_trans){
     switch(rxPacket.payload[LPS_TWR_TYPE]) {
       case LPS_TWR_ANSWER:
       {
+        // DEBUG_PRINT("receive answer");
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_FINAL;
         txPacket.payload[LPS_TWR_SEQ] = rxPacket.payload[LPS_TWR_SEQ];
         dwGetReceiveTimestamp(dev, &arival);
@@ -200,6 +260,7 @@ static void rxcallback(dwDevice_t *dev) {
       }
       case LPS_TWR_REPORT:
       {
+        // DEBUG_PRINT("receive report");
         lpsTwrInterCFsReportPayload_t *report = (lpsTwrInterCFsReportPayload_t *)(rxPacket.payload+2);
         double tround1, treply1, treply2, tround2, tprop_ctn, tprop;
         memcpy(&poll_rx, &report->pollRx, 5);
@@ -240,6 +301,7 @@ static void rxcallback(dwDevice_t *dev) {
     switch(rxPacket.payload[LPS_TWR_TYPE]) {
       case LPS_TWR_POLL:
       {
+        // DEBUG_PRINT("receive poll");
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_ANSWER;
         txPacket.payload[LPS_TWR_SEQ] = rxPacket.payload[LPS_TWR_SEQ];
         dwGetReceiveTimestamp(dev, &arival);
@@ -253,6 +315,7 @@ static void rxcallback(dwDevice_t *dev) {
       }
       case LPS_TWR_FINAL:
       {
+        // DEBUG_PRINT("receive final");
         lpsTwrInterCFsReportPayload_t *report = (lpsTwrInterCFsReportPayload_t *)(txPacket.payload+2);
         dwGetReceiveTimestamp(dev, &arival);
         arival.full -= (antennaDelay / 2);
@@ -270,6 +333,7 @@ static void rxcallback(dwDevice_t *dev) {
       }
       case (LPS_TWR_REPORT+1):
       {
+        // DEBUG_PRINT("receive report again");
         lpsTwrInterCFsReportPayload_t *report2 = (lpsTwrInterCFsReportPayload_t *)(rxPacket.payload+2);
         uint8_t rangingID = (uint8_t)(rxPacket.sourceAddress & 0xFF)-10;
         if((report2->distance)!=0){
@@ -285,7 +349,9 @@ static void rxcallback(dwDevice_t *dev) {
             median_data[rangingID].index_inserting = 0;
           median_data[rangingID].distance_history[median_data[rangingID].index_inserting] = calcDist;
         }
+        TWRongoing = false;
         rangingOk = true;
+        // DEBUG_PRINT("done");
         // uint8_t fromID = (uint8_t)(rxPacket.sourceAddress & 0xFF);
         // if( selfID == fromID + 1 || selfID == 0 ){
         //   current_mode_trans = true;
@@ -311,10 +377,10 @@ static void rxcallback(dwDevice_t *dev) {
         //   dwSetDefaults(dev);
         //   dwStartReceive(dev);
         // }
-        // dwNewReceive(dev);
-        // dwSetDefaults(dev);
-        // dwStartReceive(dev);
-        MODE = lpsMode_TDoA2;
+        dwNewReceive(dev);
+        dwSetDefaults(dev);
+        dwStartReceive(dev);
+        // MODE = lpsMode_TDoA2;
         // DEBUG_PRINT("change to TDOA \n");
         break;
       }
@@ -329,12 +395,6 @@ static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
     case eventPacketReceived:
       rxcallback(dev);
       checkTurn = false;
-      if (current_mode_trans == false){
-        endu = endu +1;
-        if (endu>=5){
-          MODE = lpsMode_TDoA2;
-        }
-      }
       break;
     case eventPacketSent:
       txcallback(dev);
@@ -388,6 +448,7 @@ static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
 static void twrTagInit(dwDevice_t *dev)
 {
   endu = 0;
+  history_event=0;
   // Initialize the packet in the TX buffer
   memset(&txPacket, 0, sizeof(txPacket));
   MAC80215_PACKET_INIT(txPacket, MAC802154_TYPE_DATA);
@@ -406,15 +467,18 @@ static void twrTagInit(dwDevice_t *dev)
   // Communication logic between each UWB
   if(selfID==10)
   {
-    current_receiveID = selfID+4;
-    current_mode_trans = true;
-    dwSetReceiveWaitTimeout(dev, 1000);
+    // current_receiveID = selfID+4;
+    current_mode_trans = false;
+    TWRongoing = false;
+    dwSetReceiveWaitTimeout(dev, 10000);
+    
   }
   else
   {
-    // current_receiveID = 0;
-    current_mode_trans = false;
-    dwSetReceiveWaitTimeout(dev, 10000);
+    current_receiveID = 10;
+    current_mode_trans = true;
+    TWRongoing = true;
+    dwSetReceiveWaitTimeout(dev, 1000);
   }
 
   for (int i = 0; i < NUM_CFs; i++) {
