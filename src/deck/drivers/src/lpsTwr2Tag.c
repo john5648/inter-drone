@@ -282,6 +282,13 @@ static void rxcallback(dwDevice_t *dev) {
         }
 
         lpsTwrInterCFsReportPayload_t *report2 = (lpsTwrInterCFsReportPayload_t *)(txPacket.payload+2);
+        txPacket.sourceAddress = selfAddress;
+        //make it robust by adding (selfID + number<14) with plusing number when there is no response
+        if (selfID<14){
+          txPacket.destAddress = basicAddr + selfID+1;
+        }else{
+          txPacket.destAddress = basicAddr + 10;
+        }
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_REPORT+1;
         txPacket.payload[LPS_TWR_SEQ] = rxPacket.payload[LPS_TWR_SEQ];
         report2->distance = calcDist;
@@ -522,9 +529,9 @@ uwbAlgorithm_t uwbTwr2TagAlgorithm = {
 };
 
 LOG_GROUP_START(ranging)
-LOG_ADD(LOG_UINT16, distance0, &state.distance[1])
-LOG_ADD(LOG_UINT16, distance1, &state.distance[2])
-LOG_ADD(LOG_UINT16, distance2, &state.distance[3])
-LOG_ADD(LOG_UINT16, distance3, &state.distance[4])
-LOG_ADD(LOG_UINT16, distance4, &state.distance[0])
+LOG_ADD(LOG_UINT16, distance0, &state.distance[0])
+LOG_ADD(LOG_UINT16, distance1, &state.distance[1])
+LOG_ADD(LOG_UINT16, distance2, &state.distance[2])
+LOG_ADD(LOG_UINT16, distance3, &state.distance[3])
+LOG_ADD(LOG_UINT16, distance4, &state.distance[4])
 LOG_GROUP_STOP(ranging) 

@@ -42,6 +42,8 @@
 #include "physicalConstants.h"
 #include "tdoaEngineInstance.h"
 
+#include "configblock.h"
+
 // #include "debug.h"
 
 bool flyornot = false;
@@ -96,6 +98,10 @@ static float logClockCorrection[LOCODECK_NR_OF_TDOA2_ANCHORS];
 static uint16_t logAnchorDistance[LOCODECK_NR_OF_TDOA2_ANCHORS];
 
 static bool rangingOk;
+
+static uint8_t selfID;
+#define basicAddr 0xbccf000000000000
+static locoAddress_t selfAddress;
 
 // The default receive time in the anchors for messages from other anchors is 0
 // and is overwritten with the actual receive time when a packet arrives.
@@ -188,12 +194,17 @@ static bool rxcallback(dwDevice_t *dev) {
 
   int dataLength = dwGetDataLength(dev);
   packet_t rxPacket;
-
+  
   dwGetData(dev, (uint8_t*)&rxPacket, dataLength);
+  bool lppSent = false;
+  if (rxPacket.destAddress == selfAddress){
+    MODE = lpsMode_TWR2;
+    return lppSent;
+  }
+
   const rangePacket2_t* packet = (rangePacket2_t*)rxPacket.payload;
   // DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
 
-  bool lppSent = false;
   if (packet->type == PACKET_TYPE_TDOA2) {
     const uint8_t anchor = rxPacket.sourceAddress & 0xff;
     // DEBUG_PRINT("%d \n", anchor);
@@ -329,6 +340,11 @@ static void Initialize(dwDevice_t *dev) {
   dwCommitConfiguration(dev);
 
   rangingOk = false;
+
+  selfID = (uint8_t)(((configblockGetRadioAddress()) & 0x000000000f));
+  selfAddress = basicAddr + selfID;
+
+
 }
 
 static bool isRangingOk()
