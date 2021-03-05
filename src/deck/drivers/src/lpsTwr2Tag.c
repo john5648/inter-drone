@@ -40,7 +40,7 @@
 #include "log.h"
 #include "physicalConstants.h"
 #include "configblock.h"
-// #include "debug.h"
+#include "debug.h"
 
 // #include "estimator_kalman.h"
 
@@ -51,7 +51,7 @@ static locoAddress_t selfAddress;
 static const uint64_t antennaDelay = (ANTENNA_OFFSET*499.2e6*128)/299792458.0; // In radio tick
 
 // mode=4 for tag and mode=2 for anchor 
-int MODE = 4;
+int MODE = 2;
 static int endu;
 static int history_event;
 
@@ -117,15 +117,15 @@ static void txcallback(dwDevice_t *dev)
   if(current_mode_trans){
     switch (txPacket.payload[0]) {
       case LPS_TWR_POLL:
-        // DEBUG_PRINT("send poll");
+        DEBUG_PRINT("send poll");
         poll_tx = departure;
         break;
       case LPS_TWR_FINAL:
-        // DEBUG_PRINT("send final");
+        DEBUG_PRINT("send final");
         final_tx = departure;
         break;
       case LPS_TWR_REPORT+1:
-        // DEBUG_PRINT("send report again");
+        DEBUG_PRINT("send report again");
         // if( (current_receiveID == 0) || (current_receiveID-1 == selfID) ){
         //   current_mode_trans = false;
         //   dwIdle(dev);
@@ -153,32 +153,14 @@ static void txcallback(dwDevice_t *dev)
   }else{
     switch (txPacket.payload[0]) {
       case LPS_TWR_ANSWER:
-      // DEBUG_PRINT("send answer");
+      DEBUG_PRINT("send answer");
         answer_tx = departure;
         break;
       case LPS_TWR_REPORT:
-      // DEBUG_PRINT("send report");
+      DEBUG_PRINT("send report");
         break;
     }
   }
-  if(history_event==(int)(txPacket.payload[0])){
-    endu = endu + 1;
-    if (endu>=5){
-      if(current_mode_trans){
-        MODE = lpsMode_TDoA2;
-      }else{
-        TWRongoing = false;
-        endu = 0;
-        dwNewReceive(dev);
-        dwSetDefaults(dev);
-        dwStartReceive(dev);
-        return;
-      }
-    }
-  }else{
-    endu = 0;
-  }
-  history_event = (int)(txPacket.payload[0]);
 }
 
 
@@ -201,13 +183,20 @@ static void rxcallback(dwDevice_t *dev) {
       return;
     }
     current_receiveID = (uint8_t)(rxPacket.sourceAddress & 0x0f);
-    // DEBUG_PRINT("choose anchor %d ", current_receiveID);
+    DEBUG_PRINT("choose anchor %d ", current_receiveID);
     TWRongoing = true;
+    endu = 0;
   }else if(current_mode_trans==false && TWRongoing==true){
     if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)!=current_receiveID){
       dwNewReceive(dev);
       dwSetDefaults(dev);
       dwStartReceive(dev);
+      endu = endu +1;
+      if (endu>=3){
+        DEBUG_PRINT("Again");
+        TWRongoing = false;
+        endu = 0;
+      }
       return;
     }
     // DEBUG_PRINT("still anchor");
@@ -216,6 +205,12 @@ static void rxcallback(dwDevice_t *dev) {
       dwNewReceive(dev);
       dwSetDefaults(dev);
       dwStartReceive(dev);
+      endu = endu + 1;
+      if(endu>=3){
+        DEBUG_PRINT("Again");
+        endu = 0;
+        MODE = lpsMode_TDoA2;
+      }
       return;
     }
   }else{
@@ -237,7 +232,7 @@ static void rxcallback(dwDevice_t *dev) {
   //   return;
   // }
   
-  // DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
+  DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
   txPacket.destAddress = rxPacket.sourceAddress;
   txPacket.sourceAddress = rxPacket.destAddress;
   // DEBUG_PRINT(current_mode_trans ? "true" : "false");
@@ -246,7 +241,7 @@ static void rxcallback(dwDevice_t *dev) {
     switch(rxPacket.payload[LPS_TWR_TYPE]) {
       case LPS_TWR_ANSWER:
       {
-        // DEBUG_PRINT("receive answer");
+        DEBUG_PRINT("receive answer");
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_FINAL;
         txPacket.payload[LPS_TWR_SEQ] = rxPacket.payload[LPS_TWR_SEQ];
         dwGetReceiveTimestamp(dev, &arival);
@@ -260,7 +255,7 @@ static void rxcallback(dwDevice_t *dev) {
       }
       case LPS_TWR_REPORT:
       {
-        // DEBUG_PRINT("receive report");
+        DEBUG_PRINT("receive report");
         lpsTwrInterCFsReportPayload_t *report = (lpsTwrInterCFsReportPayload_t *)(rxPacket.payload+2);
         double tround1, treply1, treply2, tround2, tprop_ctn, tprop;
         memcpy(&poll_rx, &report->pollRx, 5);
@@ -301,7 +296,7 @@ static void rxcallback(dwDevice_t *dev) {
     switch(rxPacket.payload[LPS_TWR_TYPE]) {
       case LPS_TWR_POLL:
       {
-        // DEBUG_PRINT("receive poll");
+        DEBUG_PRINT("receive poll");
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_ANSWER;
         txPacket.payload[LPS_TWR_SEQ] = rxPacket.payload[LPS_TWR_SEQ];
         dwGetReceiveTimestamp(dev, &arival);
@@ -315,7 +310,7 @@ static void rxcallback(dwDevice_t *dev) {
       }
       case LPS_TWR_FINAL:
       {
-        // DEBUG_PRINT("receive final");
+        DEBUG_PRINT("receive final");
         lpsTwrInterCFsReportPayload_t *report = (lpsTwrInterCFsReportPayload_t *)(txPacket.payload+2);
         dwGetReceiveTimestamp(dev, &arival);
         arival.full -= (antennaDelay / 2);
@@ -333,7 +328,7 @@ static void rxcallback(dwDevice_t *dev) {
       }
       case (LPS_TWR_REPORT+1):
       {
-        // DEBUG_PRINT("receive report again");
+        DEBUG_PRINT("receive report again");
         lpsTwrInterCFsReportPayload_t *report2 = (lpsTwrInterCFsReportPayload_t *)(rxPacket.payload+2);
         uint8_t rangingID = (uint8_t)(rxPacket.sourceAddress & 0xFF)-10;
         if((report2->distance)!=0){
@@ -390,7 +385,7 @@ static void rxcallback(dwDevice_t *dev) {
 
 static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
 {
-  // DEBUG_PRINT("%d", event);
+  DEBUG_PRINT("%d", event);
   switch(event) {
     case eventPacketReceived:
       rxcallback(dev);
@@ -470,7 +465,7 @@ static void twrTagInit(dwDevice_t *dev)
     // current_receiveID = selfID+4;
     current_mode_trans = false;
     TWRongoing = false;
-    dwSetReceiveWaitTimeout(dev, 10000);
+    dwSetReceiveWaitTimeout(dev, 2000);
     
   }
   else
@@ -478,7 +473,7 @@ static void twrTagInit(dwDevice_t *dev)
     current_receiveID = 10;
     current_mode_trans = true;
     TWRongoing = true;
-    dwSetReceiveWaitTimeout(dev, 1000);
+    dwSetReceiveWaitTimeout(dev, 2000);
   }
 
   for (int i = 0; i < NUM_CFs; i++) {
