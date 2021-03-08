@@ -44,7 +44,7 @@
 
 #include "configblock.h"
 
-#include "debug.h"
+// #include "debug.h"
 
 bool flyornot = false;
 
@@ -197,7 +197,7 @@ static bool rxcallback(dwDevice_t *dev) {
   dwGetData(dev, (uint8_t*)&rxPacket, dataLength);
   bool lppSent = false;
   if (rxPacket.destAddress == selfAddress){
-    DEBUG_PRINT("\nsignal receive\n");
+    // DEBUG_PRINT("\nsignal receive\n");
     chang = 0;
     MODE = lpsMode_TWR2;
     return lppSent;
@@ -238,18 +238,29 @@ static bool rxcallback(dwDevice_t *dev) {
 
       rangingOk = true;
 
-      if (chang>=5000){
+      if (twragain){
+        chang=chang+1;
+        if(chang>=32){
+          chang = 0;
+          twragain = false;
+          MODE = lpsMode_TWR2;
+          // DEBUG_PRINT("back to TWR \n");
+        }
+      }
+      //**************this for only EB*************//
+      else if (chang>=5000){
         chang=0;
         MODE = lpsMode_TWR2;
-        DEBUG_PRINT("change to TWR \n");
       }else{
         chang=chang+1;
       }
+      //**************this for only EB*************//
 
-      if (flag11==0 && flyornot){
-        flag11 = 1;
-        chang = -2000;
-      }
+      // if (flag11==0 && flyornot){
+      //   flag11 = 1;
+      //   chang = -2000;
+      // DEBUG_PRINT("change to TWR \n");
+      // }
     }
   }
   return lppSent;

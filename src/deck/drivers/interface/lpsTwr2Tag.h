@@ -22,6 +22,7 @@ int switchAgentMode();
 extern int MODE;
 
 extern bool flyornot;
+extern bool twragain;
 
 typedef struct {
   uint8_t pollRx[5];

@@ -40,7 +40,7 @@
 #include "log.h"
 #include "physicalConstants.h"
 #include "configblock.h"
-#include "debug.h"
+// #include "debug.h"
 
 // #include "estimator_kalman.h"
 
@@ -54,6 +54,7 @@ static const uint64_t antennaDelay = (ANTENNA_OFFSET*499.2e6*128)/299792458.0; /
 int MODE = 2;
 static int endu;
 static int history_event;
+bool twragain = false;
 
 int switchAgentMode(){
     return MODE;
@@ -86,27 +87,27 @@ static bool TWRongoing;
 
 
 // Median filter for distance ranging (size=3)
-typedef struct {
-  uint16_t distance_history[3];
-  uint8_t index_inserting;
-} median_data_t;
-static median_data_t median_data;
+// typedef struct {
+//   uint16_t distance_history[3];
+//   uint8_t index_inserting;
+// } median_data_t;
+// static median_data_t median_data;
 
-static uint16_t median_filter_3(uint16_t *data)
-{
-  uint16_t middle;
-  if ((data[0] <= data[1]) && (data[0] <= data[2])){
-    middle = (data[1] <= data[2]) ? data[1] : data[2];
-  }
-  else if((data[1] <= data[0]) && (data[1] <= data[2])){
-    middle = (data[0] <= data[2]) ? data[0] : data[2];
-  }
-  else{
-    middle = (data[0] <= data[1]) ? data[0] : data[1];
-  }
-  return middle;
-}
-#define ABS(a) ((a) > 0 ? (a) : -(a))
+// static uint16_t median_filter_3(uint16_t *data)
+// {
+//   uint16_t middle;
+//   if ((data[0] <= data[1]) && (data[0] <= data[2])){
+//     middle = (data[1] <= data[2]) ? data[1] : data[2];
+//   }
+//   else if((data[1] <= data[0]) && (data[1] <= data[2])){
+//     middle = (data[0] <= data[2]) ? data[0] : data[2];
+//   }
+//   else{
+//     middle = (data[0] <= data[1]) ? data[0] : data[1];
+//   }
+//   return middle;
+// }
+// #define ABS(a) ((a) > 0 ? (a) : -(a))
 
 static void txcallback(dwDevice_t *dev)
 {
@@ -117,15 +118,12 @@ static void txcallback(dwDevice_t *dev)
   if(current_mode_trans){
     switch (txPacket.payload[0]) {
       case LPS_TWR_POLL:
-        DEBUG_PRINT("send poll");
         poll_tx = departure;
         break;
       case LPS_TWR_FINAL:
-        DEBUG_PRINT("send final");
         final_tx = departure;
         break;
       case LPS_TWR_REPORT+1:
-        DEBUG_PRINT("send report again");
         // if( (current_receiveID == 0) || (current_receiveID-1 == selfID) ){
         //   current_mode_trans = false;
         //   dwIdle(dev);
@@ -171,84 +169,27 @@ static void rxcallback(dwDevice_t *dev) {
   memset(&rxPacket, 0, MAC802154_HEADER_LENGTH);
   dwGetData(dev, (uint8_t*)&rxPacket, dataLength);
 
-  // DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
-  // To prevent node being detected instead of drones
-  // if(rxPacket.destAddress ==selfAddress && ((rxPacket.sourceAddress) & 0x0f) >10) && TWRongoing==false){
-  //   current_receiveID = (uint8_t)(rxPacket.sourceAddress & 0x0f);
-  //   TWRongoing = true;
-  //   endu = 0;
-  // }else if(rxPacket.destAddress ==selfAddress && ((rxPacket.sourceAddress) & 0x0f) >10) && TWRongoing==false)
+  // To prevent node being detected instead of drone
+  if(rxPacket.destAddress == selfAddress && current_mode_trans == false){
+    if (TWRongoing == false){
+      current_receiveID = (uint8_t)(rxPacket.sourceAddress & 0x0f);
+      TWRongoing = true;
+      endu = 0;
+    }
+  }else if(rxPacket.destAddress == selfAddress && ((rxPacket.sourceAddress & 0x0f)==10) && current_mode_trans == true){
 
-
-  if (current_mode_trans==false && TWRongoing==false){
-    if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)!=10){
-      dwNewReceive(dev);
-      dwSetDefaults(dev);
-      dwStartReceive(dev);
-      return;
-    }
-    current_receiveID = (uint8_t)(rxPacket.sourceAddress & 0x0f);
-    // DEBUG_PRINT("choose anchor %d ", current_receiveID);
-    TWRongoing = true;
-    endu = 0;
-  }else if(current_mode_trans==false && TWRongoing==true){
-    if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)!=current_receiveID){
-      dwNewReceive(dev);
-      dwSetDefaults(dev);
-      dwStartReceive(dev);
-      endu = endu +1;
-      if (endu>=3){
-        DEBUG_PRINT("Again");
-        TWRongoing = false;
-        endu = 0;
-      }
-      return;
-    }
-  }else if(current_mode_trans && checkTurn == false){
-    if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)<10){
-      dwNewReceive(dev);
-      dwSetDefaults(dev);
-      dwStartReceive(dev);
-      return;
-      // endu = endu + 1;
-      // if(endu>=3){
-      //   DEBUG_PRINT("Again");
-      //   endu = 0;
-      //   MODE = lpsMode_TDoA2;
-      // }
-      // return;
-    }
-  }else if(current_mode_trans && checkTurn == true){
-    if (rxPacket.destAddress != selfAddress && (rxPacket.sourceAddress & 0x0f)>=10){
-      DEBUG_PRINT("\nchange to tdoa\n");
-      checkTurn = false;
-      MODE = lpsMode_TDoA2;
-      return;
-    }
-    dwNewReceive(dev);
-    dwSetDefaults(dev);
-    dwStartReceive(dev);
+  }else if(rxPacket.destAddress != selfAddress && ((rxPacket.sourceAddress & 0x0f)>10) && checkTurn == true){
+    // DEBUG_PRINT("\nchange to tdoa\n");
+    MODE = lpsMode_TDoA2;
     return;
   }else{
-    // DEBUG_PRINT("so what");
     dwNewReceive(dev);
     dwSetDefaults(dev);
     dwStartReceive(dev);
     return;
   }
-  // if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)<10) {
-  //   // if(current_mode_trans){
-  //   //   current_mode_trans = false;
-  //   //   dwIdle(dev);
-  //   //   dwSetReceiveWaitTimeout(dev, 10000);
-  //   // }
-  //   dwNewReceive(dev);
-  //   dwSetDefaults(dev);
-  //   dwStartReceive(dev);
-  //   return;
-  // }
-  
-  DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
+
+  // DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
   txPacket.destAddress = rxPacket.sourceAddress;
   txPacket.sourceAddress = rxPacket.destAddress;
   // DEBUG_PRINT(current_mode_trans ? "true" : "false");
@@ -284,21 +225,25 @@ static void rxcallback(dwDevice_t *dev) {
         tprop_ctn = ((tround1*tround2) - (treply1*treply2)) / (tround1 + tround2 + treply1 + treply2);
         tprop = tprop_ctn / LOCODECK_TS_FREQ;
         uint16_t calcDist = (uint16_t)(1000 * (SPEED_OF_LIGHT * tprop + 1));
+        // if(calcDist!=0){
+        //   uint16_t medianDist = median_filter_3(median_data.distance_history);
+        //   if (ABS(medianDist-calcDist)>500){
+        //     state.distance = medianDist;
+        //   }else{
+        //     state.distance = calcDist;
+        //   }
+        //   median_data.index_inserting++;
+        //   if(median_data.index_inserting==3){
+        //     median_data.index_inserting = 0;
+        //   }
+        //   median_data.distance_history[median_data.index_inserting] = calcDist;       
+        // }
+
         if(calcDist!=0){
-          uint16_t medianDist = median_filter_3(median_data.distance_history);
-          if (ABS(medianDist-calcDist)>500){
-            state.distance = medianDist;
-          }else{
-            state.distance = calcDist;
-          }
-          median_data.index_inserting++;
-          if(median_data.index_inserting==3){
-            median_data.index_inserting = 0;
-          }
-          median_data.distance_history[median_data.index_inserting] = calcDist;       
-          checkTurn = true;
-          rangingOk = true;
+          state.distance = calcDist;
         }
+        checkTurn = true;
+        rangingOk = true;
 
         lpsTwrInterCFsReportPayload_t *report2 = (lpsTwrInterCFsReportPayload_t *)(txPacket.payload+2);
         txPacket.sourceAddress = selfAddress;
@@ -389,11 +334,18 @@ static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
       txcallback(dev);
       break;
     case eventTimeout:  // Comes back to timeout after each ranging attempt
-      DEBUG_PRINT("timeout");
     case eventReceiveTimeout:
-      DEBUG_PRINT("receive timeout");
     case eventReceiveFailed:
-      DEBUG_PRINT("twr init");
+      if(checkTurn){
+        endu = endu + 1;
+      }
+      if(endu >=3){
+        twragain = true;
+        // DEBUG_PRINT("\ntdoa for while\n");
+        MODE = lpsMode_TDoA2;
+        return MAX_TIMEOUT;
+      }
+      endu = endu + 1;
       if (current_mode_trans==true && checkTurn == false)
       {
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_POLL;
@@ -486,7 +438,7 @@ static void twrTagInit(dwDevice_t *dev)
     dwSetReceiveWaitTimeout(dev, 2000);
   }
 
-  median_data.index_inserting = 0;
+  // median_data.index_inserting = 0;
 
   checkTurn = false;
   rangingOk = false;
