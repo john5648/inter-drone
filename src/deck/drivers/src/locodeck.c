@@ -347,7 +347,7 @@ static void handleModeSwitch() {
     resetAutoSearchMode();
     if (algoOptions.userRequestedMode != algoOptions.currentRangingMode) {
       if (switchToMode(algoOptions.userRequestedMode)) {
-        DEBUG_PRINT("\n Switching to mode %s\n", algorithmsList[algoOptions.currentRangingMode].name);
+        // DEBUG_PRINT("\n Switching to mode %s\n", algorithmsList[algoOptions.currentRangingMode].name);
       }
     }
   }

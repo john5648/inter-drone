@@ -44,7 +44,7 @@
 
 #include "configblock.h"
 
-// #include "debug.h"
+#include "debug.h"
 
 bool flyornot = false;
 
@@ -69,8 +69,7 @@ static lpsTdoa2AlgoOptions_t defaultOptions = {
    },
 };
 
-// int chang=-1000;
-int chang=-5000;
+int chang=-1000;
 int flag11 = 0;
 
 static lpsTdoa2AlgoOptions_t* options = &defaultOptions;
@@ -198,6 +197,8 @@ static bool rxcallback(dwDevice_t *dev) {
   dwGetData(dev, (uint8_t*)&rxPacket, dataLength);
   bool lppSent = false;
   if (rxPacket.destAddress == selfAddress){
+    DEBUG_PRINT("\nsignal receive\n");
+    chang = 0;
     MODE = lpsMode_TWR2;
     return lppSent;
   }
@@ -237,21 +238,20 @@ static bool rxcallback(dwDevice_t *dev) {
 
       rangingOk = true;
 
-      if (chang>=32){
+      if (chang>=5000){
         chang=0;
         MODE = lpsMode_TWR2;
-        // DEBUG_PRINT("change to TWR \n");
-      }
-      else{
+        DEBUG_PRINT("change to TWR \n");
+      }else{
         chang=chang+1;
       }
+
       if (flag11==0 && flyornot){
         flag11 = 1;
         chang = -2000;
       }
     }
   }
-
   return lppSent;
 }
 
@@ -343,8 +343,6 @@ static void Initialize(dwDevice_t *dev) {
 
   selfID = (uint8_t)(((configblockGetRadioAddress()) & 0x000000000f));
   selfAddress = basicAddr + selfID;
-
-
 }
 
 static bool isRangingOk()

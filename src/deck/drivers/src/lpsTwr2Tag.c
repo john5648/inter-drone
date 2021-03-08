@@ -60,7 +60,7 @@ int switchAgentMode(){
 }
 
 typedef struct {
-  uint16_t distance[NUM_CFs];
+  uint16_t distance;
 } swarmInfo_t;
 static swarmInfo_t state;
 
@@ -80,7 +80,7 @@ static bool current_mode_trans; // is or not in transmitting mode
 static uint8_t current_receiveID; // transmitting to which UWB
 
 static bool checkTurn; // check if the receiving UWB turns into transmitting mode
-static uint32_t checkTurnTick = 0;
+// static uint32_t checkTurnTick = 0;
 
 static bool TWRongoing;
 
@@ -90,7 +90,7 @@ typedef struct {
   uint16_t distance_history[3];
   uint8_t index_inserting;
 } median_data_t;
-static median_data_t median_data[NUM_CFs];
+static median_data_t median_data;
 
 static uint16_t median_filter_3(uint16_t *data)
 {
@@ -147,17 +147,15 @@ static void txcallback(dwDevice_t *dev)
         // else{
         //   current_receiveID = current_receiveID - 1;
         // }
-        MODE = lpsMode_TDoA2;
+        // MODE = lpsMode_TDoA2;
         break;
     }
   }else{
     switch (txPacket.payload[0]) {
       case LPS_TWR_ANSWER:
-      DEBUG_PRINT("send answer");
         answer_tx = departure;
         break;
       case LPS_TWR_REPORT:
-      DEBUG_PRINT("send report");
         break;
     }
   }
@@ -175,15 +173,22 @@ static void rxcallback(dwDevice_t *dev) {
 
   // DEBUG_PRINT("%llu, %llu\n", rxPacket.destAddress & 0x0f, rxPacket.sourceAddress & 0x0f);
   // To prevent node being detected instead of drones
+  // if(rxPacket.destAddress ==selfAddress && ((rxPacket.sourceAddress) & 0x0f) >10) && TWRongoing==false){
+  //   current_receiveID = (uint8_t)(rxPacket.sourceAddress & 0x0f);
+  //   TWRongoing = true;
+  //   endu = 0;
+  // }else if(rxPacket.destAddress ==selfAddress && ((rxPacket.sourceAddress) & 0x0f) >10) && TWRongoing==false)
+
+
   if (current_mode_trans==false && TWRongoing==false){
-    if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)<10){
+    if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)!=10){
       dwNewReceive(dev);
       dwSetDefaults(dev);
       dwStartReceive(dev);
       return;
     }
     current_receiveID = (uint8_t)(rxPacket.sourceAddress & 0x0f);
-    DEBUG_PRINT("choose anchor %d ", current_receiveID);
+    // DEBUG_PRINT("choose anchor %d ", current_receiveID);
     TWRongoing = true;
     endu = 0;
   }else if(current_mode_trans==false && TWRongoing==true){
@@ -199,20 +204,31 @@ static void rxcallback(dwDevice_t *dev) {
       }
       return;
     }
-    // DEBUG_PRINT("still anchor");
-  }else if(current_mode_trans){
+  }else if(current_mode_trans && checkTurn == false){
     if (rxPacket.destAddress != selfAddress || (rxPacket.sourceAddress & 0x0f)<10){
       dwNewReceive(dev);
       dwSetDefaults(dev);
       dwStartReceive(dev);
-      endu = endu + 1;
-      if(endu>=3){
-        DEBUG_PRINT("Again");
-        endu = 0;
-        MODE = lpsMode_TDoA2;
-      }
+      return;
+      // endu = endu + 1;
+      // if(endu>=3){
+      //   DEBUG_PRINT("Again");
+      //   endu = 0;
+      //   MODE = lpsMode_TDoA2;
+      // }
+      // return;
+    }
+  }else if(current_mode_trans && checkTurn == true){
+    if (rxPacket.destAddress != selfAddress && (rxPacket.sourceAddress & 0x0f)>=10){
+      DEBUG_PRINT("\nchange to tdoa\n");
+      checkTurn = false;
+      MODE = lpsMode_TDoA2;
       return;
     }
+    dwNewReceive(dev);
+    dwSetDefaults(dev);
+    dwStartReceive(dev);
+    return;
   }else{
     // DEBUG_PRINT("so what");
     dwNewReceive(dev);
@@ -241,7 +257,7 @@ static void rxcallback(dwDevice_t *dev) {
     switch(rxPacket.payload[LPS_TWR_TYPE]) {
       case LPS_TWR_ANSWER:
       {
-        DEBUG_PRINT("receive answer");
+        // DEBUG_PRINT("receive answer");
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_FINAL;
         txPacket.payload[LPS_TWR_SEQ] = rxPacket.payload[LPS_TWR_SEQ];
         dwGetReceiveTimestamp(dev, &arival);
@@ -255,7 +271,7 @@ static void rxcallback(dwDevice_t *dev) {
       }
       case LPS_TWR_REPORT:
       {
-        DEBUG_PRINT("receive report");
+        // DEBUG_PRINT("receive report");
         lpsTwrInterCFsReportPayload_t *report = (lpsTwrInterCFsReportPayload_t *)(rxPacket.payload+2);
         double tround1, treply1, treply2, tround2, tprop_ctn, tprop;
         memcpy(&poll_rx, &report->pollRx, 5);
@@ -269,15 +285,18 @@ static void rxcallback(dwDevice_t *dev) {
         tprop = tprop_ctn / LOCODECK_TS_FREQ;
         uint16_t calcDist = (uint16_t)(1000 * (SPEED_OF_LIGHT * tprop + 1));
         if(calcDist!=0){
-          uint16_t medianDist = median_filter_3(median_data[current_receiveID-10].distance_history);
-          if (ABS(medianDist-calcDist)>500)
-            state.distance[current_receiveID-10] = medianDist;
-          else
-            state.distance[current_receiveID-10] = calcDist;
-          median_data[current_receiveID-10].index_inserting++;
-          if(median_data[current_receiveID-10].index_inserting==3)
-            median_data[current_receiveID-10].index_inserting = 0;
-          median_data[current_receiveID-10].distance_history[median_data[current_receiveID-10].index_inserting] = calcDist;        
+          uint16_t medianDist = median_filter_3(median_data.distance_history);
+          if (ABS(medianDist-calcDist)>500){
+            state.distance = medianDist;
+          }else{
+            state.distance = calcDist;
+          }
+          median_data.index_inserting++;
+          if(median_data.index_inserting==3){
+            median_data.index_inserting = 0;
+          }
+          median_data.distance_history[median_data.index_inserting] = calcDist;       
+          checkTurn = true;
           rangingOk = true;
         }
 
@@ -287,7 +306,7 @@ static void rxcallback(dwDevice_t *dev) {
         if (selfID<14){
           txPacket.destAddress = basicAddr + selfID+1;
         }else{
-          txPacket.destAddress = basicAddr + 10;
+          txPacket.destAddress = basicAddr + 11;
         }
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_REPORT+1;
         txPacket.payload[LPS_TWR_SEQ] = rxPacket.payload[LPS_TWR_SEQ];
@@ -296,6 +315,19 @@ static void rxcallback(dwDevice_t *dev) {
         dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2+sizeof(lpsTwrInterCFsReportPayload_t));
         dwWaitForResponse(dev, true);
         dwStartTransmit(dev);  
+
+        // if (selfID<14){
+        //   txPacket.destAddress = basicAddr + selfID+1;
+        //   txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_REPORT+1;
+        //   txPacket.payload[LPS_TWR_SEQ] = rxPacket.payload[LPS_TWR_SEQ];
+        //   report2->distance = calcDist;
+        //   dwNewTransmit(dev);
+        //   dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2+sizeof(lpsTwrInterCFsReportPayload_t));
+        //   dwWaitForResponse(dev, true);
+        //   dwStartTransmit(dev);  
+        // }else{
+        //   MODE = lpsMode_TDoA2;
+        // }
         break;
       }
     }
@@ -303,7 +335,6 @@ static void rxcallback(dwDevice_t *dev) {
     switch(rxPacket.payload[LPS_TWR_TYPE]) {
       case LPS_TWR_POLL:
       {
-        DEBUG_PRINT("receive poll");
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_ANSWER;
         txPacket.payload[LPS_TWR_SEQ] = rxPacket.payload[LPS_TWR_SEQ];
         dwGetReceiveTimestamp(dev, &arival);
@@ -317,7 +348,6 @@ static void rxcallback(dwDevice_t *dev) {
       }
       case LPS_TWR_FINAL:
       {
-        DEBUG_PRINT("receive final");
         lpsTwrInterCFsReportPayload_t *report = (lpsTwrInterCFsReportPayload_t *)(txPacket.payload+2);
         dwGetReceiveTimestamp(dev, &arival);
         arival.full -= (antennaDelay / 2);
@@ -335,55 +365,12 @@ static void rxcallback(dwDevice_t *dev) {
       }
       case (LPS_TWR_REPORT+1):
       {
-        DEBUG_PRINT("receive report again");
-        lpsTwrInterCFsReportPayload_t *report2 = (lpsTwrInterCFsReportPayload_t *)(rxPacket.payload+2);
-        uint8_t rangingID = (uint8_t)(rxPacket.sourceAddress & 0xFF)-10;
-        if((report2->distance)!=0){
-          // received distance has large noise
-          uint16_t calcDist = report2->distance;
-          uint16_t medianDist = median_filter_3(median_data[rangingID].distance_history);
-          if (ABS(medianDist-calcDist)>500)
-            state.distance[rangingID] = medianDist;
-          else
-            state.distance[rangingID] = calcDist;
-          median_data[rangingID].index_inserting++;
-          if(median_data[rangingID].index_inserting==3)
-            median_data[rangingID].index_inserting = 0;
-          median_data[rangingID].distance_history[median_data[rangingID].index_inserting] = calcDist;
-        }
         TWRongoing = false;
         rangingOk = true;
-        // DEBUG_PRINT("done");
-        // uint8_t fromID = (uint8_t)(rxPacket.sourceAddress & 0xFF);
-        // if( selfID == fromID + 1 || selfID == 0 ){
-        //   current_mode_trans = true;
-        //   dwIdle(dev);
-        //   dwSetReceiveWaitTimeout(dev, 1000);
-        //   if(selfID == NUM_CFs-1)
-        //     current_receiveID = 0;
-        //   else
-        //     current_receiveID = NUM_CFs - 1;
-        //   if(selfID == 0)
-        //     current_receiveID = NUM_CFs - 2; // immediate problem
-        //   txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_POLL;
-        //   txPacket.payload[LPS_TWR_SEQ] = 0;
-        //   txPacket.sourceAddress = selfAddress;
-        //   txPacket.destAddress = basicAddr + current_receiveID;
-        //   dwNewTransmit(dev);
-        //   dwSetDefaults(dev);
-        //   dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2);
-        //   dwWaitForResponse(dev, true);
-        //   dwStartTransmit(dev);
-        // }else{
-        //   dwNewReceive(dev);
-        //   dwSetDefaults(dev);
-        //   dwStartReceive(dev);
-        // }
+
         dwNewReceive(dev);
         dwSetDefaults(dev);
         dwStartReceive(dev);
-        // MODE = lpsMode_TDoA2;
-        // DEBUG_PRINT("change to TDOA \n");
         break;
       }
     }
@@ -392,19 +379,22 @@ static void rxcallback(dwDevice_t *dev) {
 
 static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
 {
-  DEBUG_PRINT("%d", event);
+  //when lpsTwr2Tag.c starts event flows as 0 -> 3 -> 4 -> 2...
+  //and when twr algorithm got interfered, event flows as 3 -> 4-> 2...
   switch(event) {
     case eventPacketReceived:
       rxcallback(dev);
-      checkTurn = false;
       break;
     case eventPacketSent:
       txcallback(dev);
       break;
     case eventTimeout:  // Comes back to timeout after each ranging attempt
+      DEBUG_PRINT("timeout");
     case eventReceiveTimeout:
+      DEBUG_PRINT("receive timeout");
     case eventReceiveFailed:
-      if (current_mode_trans==true)
+      DEBUG_PRINT("twr init");
+      if (current_mode_trans==true && checkTurn == false)
       {
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_POLL;
         txPacket.payload[LPS_TWR_SEQ] = 0;
@@ -415,27 +405,40 @@ static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
         dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2);
         dwWaitForResponse(dev, true);
         dwStartTransmit(dev);
-      }else
-      {
-        if(xTaskGetTickCount() > checkTurnTick + 20) // > 20ms
-        {
-          if(checkTurn == true){
-            current_mode_trans = true;
-            dwIdle(dev);
-            dwSetReceiveWaitTimeout(dev, 1000);
-            txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_POLL;
-            txPacket.payload[LPS_TWR_SEQ] = 0;
-            txPacket.sourceAddress = selfAddress;
-            txPacket.destAddress = basicAddr + current_receiveID;
-            dwNewTransmit(dev);
-            dwSetDefaults(dev);
-            dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2);
-            dwWaitForResponse(dev, true);
-            dwStartTransmit(dev);
-            checkTurn = false;
-            break;
-          }
+      }else if(current_mode_trans==true && checkTurn == true){
+        txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_REPORT+1;
+        txPacket.payload[LPS_TWR_SEQ] = 0;
+        txPacket.sourceAddress = selfAddress;
+        if (selfID<14){
+          txPacket.destAddress = basicAddr + selfID+1;
+        }else{
+          txPacket.destAddress = basicAddr + 11;
         }
+        dwNewTransmit(dev);
+        dwSetDefaults(dev);
+        dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2);
+        dwWaitForResponse(dev, true);
+        dwStartTransmit(dev);        
+      }else{
+        // if(xTaskGetTickCount() > checkTurnTick + 20) // > 20ms
+        // {
+        //   if(checkTurn == true){
+        //     current_mode_trans = true;
+        //     dwIdle(dev);
+        //     dwSetReceiveWaitTimeout(dev, 2000);
+        //     txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_POLL;
+        //     txPacket.payload[LPS_TWR_SEQ] = 0;
+        //     txPacket.sourceAddress = selfAddress;
+        //     txPacket.destAddress = basicAddr + current_receiveID;
+        //     dwNewTransmit(dev);
+        //     dwSetDefaults(dev);
+        //     dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH+2);
+        //     dwWaitForResponse(dev, true);
+        //     dwStartTransmit(dev);
+        //     checkTurn = false;
+        //     break;
+        //   }
+        // }
         dwNewReceive(dev);
 	      dwSetDefaults(dev);
         dwStartReceive(dev);
@@ -483,9 +486,7 @@ static void twrTagInit(dwDevice_t *dev)
     dwSetReceiveWaitTimeout(dev, 2000);
   }
 
-  for (int i = 0; i < NUM_CFs; i++) {
-    median_data[i].index_inserting = 0;
-  }
+  median_data.index_inserting = 0;
 
   checkTurn = false;
   rangingOk = false;
@@ -529,9 +530,5 @@ uwbAlgorithm_t uwbTwr2TagAlgorithm = {
 };
 
 LOG_GROUP_START(ranging)
-LOG_ADD(LOG_UINT16, distance0, &state.distance[0])
-LOG_ADD(LOG_UINT16, distance1, &state.distance[1])
-LOG_ADD(LOG_UINT16, distance2, &state.distance[2])
-LOG_ADD(LOG_UINT16, distance3, &state.distance[3])
-LOG_ADD(LOG_UINT16, distance4, &state.distance[4])
+LOG_ADD(LOG_UINT16, distance0, &state.distance)
 LOG_GROUP_STOP(ranging) 
