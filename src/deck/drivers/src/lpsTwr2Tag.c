@@ -248,7 +248,7 @@ static void rxcallback(dwDevice_t *dev) {
         lpsTwrInterCFsReportPayload_t *report2 = (lpsTwrInterCFsReportPayload_t *)(txPacket.payload+2);
         txPacket.sourceAddress = selfAddress;
         //make it robust by adding (selfID + number<14) with plusing number when there is no response
-        if (selfID<14){
+        if (selfID<15){
           txPacket.destAddress = basicAddr + selfID+1;
         }else{
           txPacket.destAddress = basicAddr + 11;
@@ -361,7 +361,7 @@ static uint32_t twrTagOnEvent(dwDevice_t *dev, uwbEvent_t event)
         txPacket.payload[LPS_TWR_TYPE] = LPS_TWR_REPORT+1;
         txPacket.payload[LPS_TWR_SEQ] = 0;
         txPacket.sourceAddress = selfAddress;
-        if (selfID<14){
+        if (selfID<15){
           txPacket.destAddress = basicAddr + selfID+1;
         }else{
           txPacket.destAddress = basicAddr + 11;

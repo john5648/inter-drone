@@ -248,13 +248,13 @@ static bool rxcallback(dwDevice_t *dev) {
         }
       }
       //**************this for only EB*************//
-      else if (chang>=5000){
-        chang=0;
-        MODE = lpsMode_TWR2;
-      }else{
-        chang=chang+1;
-      }
-      //**************this for only EB*************//
+      // else if (chang>=5000){
+      //   chang=0;
+      //   MODE = lpsMode_TWR2;
+      // }else{
+      //   chang=chang+1;
+      // }
+      //*******************************************//
 
       // if (flag11==0 && flyornot){
       //   flag11 = 1;

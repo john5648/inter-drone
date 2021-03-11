@@ -14,7 +14,7 @@
 #define LPS_TWR_TYPE 0
 #define LPS_TWR_SEQ 1
 
-#define NUM_CFs 5
+#define NUM_CFs 6
 
 extern uwbAlgorithm_t uwbTwr2TagAlgorithm;
 
