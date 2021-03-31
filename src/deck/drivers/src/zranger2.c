@@ -61,13 +61,13 @@ static bool isInit;
 
 NO_DMA_CCM_SAFE_ZERO_INIT static VL53L1_Dev_t dev;
 
+#define ABS(X) ((X) < 0 ? -(X) : (X))
 static setpoint_t setpoint;
 static state_t state;
 bool ondesiredheight = false;
 bool outofrange = false;
-static float history_range = 0;
 static float offset_range = 0;
-static float collector = 0;
+static float history_range = 0;
 
 static uint16_t zRanger2GetMeasurementAndRestart(VL53L1_Dev_t *dev)
 {
@@ -153,20 +153,23 @@ void zRanger2Task(void* arg)
       // setpoint.position.z is in meter
       commanderGetSetpoint(&setpoint, &state);
       // check if server has send setpoint and drone is on desired height
-      if (setpoint.position.z != 0.0f && ondesiredheight == false){
+      if (setpoint.position.z >= 0.1f && ondesiredheight == false){
         if(distance >= (setpoint.position.z-0.02f)){
           ondesiredheight = true;
+          history_range = distance;
         }
+      }else if(setpoint.position.z <= 0.1f && ondesiredheight == true){
+        ondesiredheight = false;
+        offset_range = 0.0f;
       }else if(ondesiredheight == true){
-        if(abs(history_range - distance) >= 0.05f){
-          offset_range = setpoint.position.z - distance;
-        }else if(abs(setpoint.position.z - distance)<=0.05f){
+        if(ABS(setpoint.position.z-offset_range - distance) >= 0.03f){
+          offset_range = setpoint.position.z - (distance+ (distance - history_range)*0.3f);
+          history_range = distance;
+        }else if (distance>=setpoint.position.z-0.02f){
           offset_range = 0.0f;
         }
       }
-      history_range = distance;
       distance = distance + offset_range;
-      collector = distance;
 
       float stdDev = expStdA * (1.0f  + expf( expCoeff * (distance - expPointA)));
       rangeEnqueueDownRangeInEstimator(distance, stdDev, xTaskGetTickCount());
@@ -191,7 +194,7 @@ PARAM_ADD(PARAM_UINT8 | PARAM_RONLY, bcZRanger2, &isInit)
 PARAM_GROUP_STOP(deck)
 
 LOG_GROUP_START(zranging)
-LOG_ADD(LOG_FLOAT, criterion, &collector)
-LOG_ADD(LOG_FLOAT, history, &history_range)
+// LOG_ADD(LOG_FLOAT, criterion, &takeoffing)
+// LOG_ADD(LOG_INT8, history, &onair)
 LOG_ADD(LOG_FLOAT, offset, &offset_range)
 LOG_GROUP_STOP(zranging) 
