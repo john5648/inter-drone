@@ -504,6 +504,7 @@ static bool predictStateForward(uint32_t osTick, float dt) {
   xSemaphoreGive(dataMutex);
 
   quadIsFlying = supervisorIsFlying();
+  flyornot = quadIsFlying;
   kalmanCorePredict(&coreData, thrustAverage, &accAverage, &gyroAverage, dt, quadIsFlying);
 
   return true;

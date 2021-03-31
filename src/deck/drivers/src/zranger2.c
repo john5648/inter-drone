@@ -44,6 +44,8 @@
 
 #include "cf_math.h"
 
+#include "commander.h"
+
 // Measurement noise model
 static const float expPointA = 2.5f;
 static const float expStdA = 0.0025f; // STD at elevation expPointA [m]
@@ -58,6 +60,14 @@ static uint16_t range_last = 0;
 static bool isInit;
 
 NO_DMA_CCM_SAFE_ZERO_INIT static VL53L1_Dev_t dev;
+
+static setpoint_t setpoint;
+static state_t state;
+bool ondesiredheight = false;
+bool outofrange = false;
+static float history_range = 0;
+static float offset_range = 0;
+static float collector = 0;
 
 static uint16_t zRanger2GetMeasurementAndRestart(VL53L1_Dev_t *dev)
 {
@@ -139,6 +149,25 @@ void zRanger2Task(void* arg)
     // occur as >8 [m] measurements
     if (range_last < RANGE_OUTLIER_LIMIT) {
       float distance = (float)range_last * 0.001f; // Scale from [mm] to [m]
+      // range_last is the measurement of z in mm (uint_16)
+      // setpoint.position.z is in meter
+      commanderGetSetpoint(&setpoint, &state);
+      // check if server has send setpoint and drone is on desired height
+      if (setpoint.position.z != 0.0f && ondesiredheight == false){
+        if(distance >= (setpoint.position.z-0.02f)){
+          ondesiredheight = true;
+        }
+      }else if(ondesiredheight == true){
+        if(abs(history_range - distance) >= 0.05f){
+          offset_range = setpoint.position.z - distance;
+        }else if(abs(setpoint.position.z - distance)<=0.05f){
+          offset_range = 0.0f;
+        }
+      }
+      history_range = distance;
+      distance = distance + offset_range;
+      collector = distance;
+
       float stdDev = expStdA * (1.0f  + expf( expCoeff * (distance - expPointA)));
       rangeEnqueueDownRangeInEstimator(distance, stdDev, xTaskGetTickCount());
     }
@@ -160,3 +189,9 @@ DECK_DRIVER(zranger2_deck);
 PARAM_GROUP_START(deck)
 PARAM_ADD(PARAM_UINT8 | PARAM_RONLY, bcZRanger2, &isInit)
 PARAM_GROUP_STOP(deck)
+
+LOG_GROUP_START(zranging)
+LOG_ADD(LOG_FLOAT, criterion, &collector)
+LOG_ADD(LOG_FLOAT, history, &history_range)
+LOG_ADD(LOG_FLOAT, offset, &offset_range)
+LOG_GROUP_STOP(zranging) 
