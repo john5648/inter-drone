@@ -68,6 +68,7 @@ bool ondesiredheight = false;
 bool outofrange = false;
 static float offset_range = 0;
 static float history_range = 0;
+static float collect_range = 0;
 
 static uint16_t zRanger2GetMeasurementAndRestart(VL53L1_Dev_t *dev)
 {
@@ -147,7 +148,7 @@ void zRanger2Task(void* arg)
     // check if range is feasible and push into the estimator
     // the sensor should not be able to measure >5 [m], and outliers typically
     // occur as >8 [m] measurements
-    if (range_last < RANGE_OUTLIER_LIMIT) {
+    if (range_last < RANGE_OUTLIER_LIMIT){
       float distance = (float)range_last * 0.001f; // Scale from [mm] to [m]
       // range_last is the measurement of z in mm (uint_16)
       // setpoint.position.z is in meter
@@ -162,15 +163,20 @@ void zRanger2Task(void* arg)
         ondesiredheight = false;
         offset_range = 0.0f;
       }else if(ondesiredheight == true){
-        if(ABS(setpoint.position.z-offset_range - distance) >= 0.03f){
-          offset_range = setpoint.position.z - (distance+ (distance - history_range)*0.3f);
-          history_range = distance;
-        }else if (distance>=setpoint.position.z-0.02f){
+        if (distance>=setpoint.position.z-0.02f){
           offset_range = 0.0f;
+        }else if(ABS(setpoint.position.z-offset_range - distance) >= 0.03f){
+          if (history_range-distance>=0){
+            offset_range = setpoint.position.z - (distance - (history_range-distance)*0.3f);
+          }
+          else{
+            offset_range = setpoint.position.z - distance;
+          }
+          history_range = distance;
         }
       }
       distance = distance + offset_range;
-
+      collect_range = distance;
       float stdDev = expStdA * (1.0f  + expf( expCoeff * (distance - expPointA)));
       rangeEnqueueDownRangeInEstimator(distance, stdDev, xTaskGetTickCount());
     }
@@ -195,6 +201,6 @@ PARAM_GROUP_STOP(deck)
 
 LOG_GROUP_START(zranging)
 // LOG_ADD(LOG_FLOAT, criterion, &takeoffing)
-// LOG_ADD(LOG_INT8, history, &onair)
-LOG_ADD(LOG_FLOAT, offset, &offset_range)
+LOG_ADD(LOG_FLOAT, history, &history_range)
+LOG_ADD(LOG_FLOAT, collect, &collect_range)
 LOG_GROUP_STOP(zranging) 
