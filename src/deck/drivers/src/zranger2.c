@@ -162,21 +162,22 @@ void zRanger2Task(void* arg)
       }else if(setpoint.position.z <= 0.1f && ondesiredheight == true){
         ondesiredheight = false;
         offset_range = 0.0f;
-      }else if(ondesiredheight == true){
-        if (distance>=setpoint.position.z-0.02f){
+      }else if(ondesiredheight == true && outofrange == false){
+        if(distance-setpoint.position.z>=0.03f){
+          if(distance-setpoint.position.z>=0.3f){
+            outofrange = true;
+          }
           offset_range = 0.0f;
-        }else if(ABS(setpoint.position.z-offset_range - distance) >= 0.03f){
-          if (history_range-distance>=0){
-            offset_range = setpoint.position.z - (distance - (history_range-distance)*0.3f);
-          }
-          else{
-            offset_range = setpoint.position.z - distance;
-          }
-          history_range = distance;
+        }else if(history_range-distance>=0.03f){
+          offset_range = setpoint.position.z - (distance - (history_range-distance)*0.3f);
+        }else if(history_range-distance<=-0.03f){
+          offset_range = setpoint.position.z - distance;
         }
+        collect_range = history_range;
+        history_range = distance;
       }
       distance = distance + offset_range;
-      collect_range = distance;
+      
       float stdDev = expStdA * (1.0f  + expf( expCoeff * (distance - expPointA)));
       rangeEnqueueDownRangeInEstimator(distance, stdDev, xTaskGetTickCount());
     }
@@ -200,7 +201,7 @@ PARAM_ADD(PARAM_UINT8 | PARAM_RONLY, bcZRanger2, &isInit)
 PARAM_GROUP_STOP(deck)
 
 LOG_GROUP_START(zranging)
-// LOG_ADD(LOG_FLOAT, criterion, &takeoffing)
+LOG_ADD(LOG_FLOAT, offset, &offset_range)
 LOG_ADD(LOG_FLOAT, history, &history_range)
 LOG_ADD(LOG_FLOAT, collect, &collect_range)
 LOG_GROUP_STOP(zranging) 
